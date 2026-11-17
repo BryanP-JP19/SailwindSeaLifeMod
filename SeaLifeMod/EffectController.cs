@@ -1,127 +1,90 @@
-﻿using System.Collections;
-using System.IO;
+using System.Collections.Generic;
 using UnityEngine;
 
-public class EffectController : MonoBehaviour
+public sealed class EffectController : MonoBehaviour
 {
+    private Transform effectRoot;
+    private bool initialized;
     private ParticleSystem blowholeParticleSystem;
     private ParticleSystem breachSplashParticleSystem;
     private ParticleSystem breachEmergeParticleSystem;
     private ParticleSystem tailSplashParticleSystem;
     private AudioSource audioSource;
-    private AudioClip[] blowholeSounds;
-    private AudioClip[] breachSplashSounds;
-    private AudioClip[] breachEmergeSounds;
-    private AudioClip[] tailSplashSounds;
+    private AudioClip[] blowholeSounds = new AudioClip[0];
+    private AudioClip[] breachSplashSounds = new AudioClip[0];
+    private AudioClip[] breachEmergeSounds = new AudioClip[0];
+    private AudioClip[] tailSplashSounds = new AudioClip[0];
 
-    void Start()
+    // The Animator can be on a child; its Animation Events reach this component.
+    // The effect objects may be elsewhere in the same animal prefab.
+    public void SetEffectRoot(Transform root)
     {
-        // Find and assign particle systems
-        blowholeParticleSystem = FindDeepChild(transform, "WhaleBlowhole").GetComponent<ParticleSystem>();
-        breachSplashParticleSystem = FindDeepChild(transform, "WhaleBreachSplash").GetComponent<ParticleSystem>();
-        breachEmergeParticleSystem = FindDeepChild(transform, "WhaleBreachEmerge").GetComponent<ParticleSystem>();
-        tailSplashParticleSystem = FindDeepChild(transform, "WhaleTailSplash").GetComponent<ParticleSystem>();
+        effectRoot = root != null ? root : transform;
+        EnsureInitialized();
+    }
 
-        // Add and configure audio source
-        audioSource = gameObject.AddComponent<AudioSource>();
-        audioSource.volume = 1.0f;
-        audioSource.spatialBlend = 1.0f;
+    private void Start()
+    {
+        EnsureInitialized();
+    }
+
+    private void EnsureInitialized()
+    {
+        if (initialized) return;
+        initialized = true;
+        blowholeParticleSystem = FindEffect("WhaleBlowhole");
+        breachSplashParticleSystem = FindEffect("WhaleBreachSplash");
+        breachEmergeParticleSystem = FindEffect("WhaleBreachEmerge");
+        tailSplashParticleSystem = FindEffect("WhaleTailSplash");
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.volume = 1f;
+        audioSource.spatialBlend = 1f;
         audioSource.minDistance = 10f;
         audioSource.maxDistance = 250f;
-
-        // Load all sounds
         LoadSounds();
     }
 
-    public void PlayBlowholeEffect()
-    {
-        if (blowholeParticleSystem != null)
-        {
-            blowholeParticleSystem.Play();
-            PlaySound(blowholeSounds);
-        }
-    }
+    public void PlayBlowholeEffect() { Play(blowholeParticleSystem, blowholeSounds); }
+    public void PlayBreachSplashEffect() { Play(breachSplashParticleSystem, breachSplashSounds); }
+    public void PlayBreachEmergeEffect() { Play(breachEmergeParticleSystem, breachEmergeSounds); }
+    public void PlayTailSplashEffect() { Play(tailSplashParticleSystem, tailSplashSounds); }
 
-    public void PlayBreachSplashEffect()
+    private void Play(ParticleSystem particles, AudioClip[] clips)
     {
-        if (breachSplashParticleSystem != null)
-        {
-            breachSplashParticleSystem.Play();
-            PlaySound(breachSplashSounds);
-        }
-    }
-
-    public void PlayBreachEmergeEffect()
-    {
-        if (breachEmergeParticleSystem != null)
-        {
-            breachEmergeParticleSystem.Play();
-            PlaySound(breachEmergeSounds);
-        }
-    }
-
-    public void PlayTailSplashEffect()
-    {
-        if (tailSplashParticleSystem != null)
-        {
-            tailSplashParticleSystem.Play();
-            PlaySound(tailSplashSounds);
-        }
-    }
-
-    private void PlaySound(AudioClip[] soundArray)
-    {
-        if (soundArray.Length > 0)
-        {
-            int randomIndex = Random.Range(0, soundArray.Length);
-            audioSource.PlayOneShot(soundArray[randomIndex]);
-        }
+        if (particles != null) particles.Play();
+        if (audioSource != null && clips != null && clips.Length > 0)
+            audioSource.PlayOneShot(clips[Random.Range(0, clips.Length)]);
     }
 
     private void LoadSounds()
     {
-        blowholeSounds = LoadAudioClips("WhaleBlowMed", 6);
-        breachSplashSounds = LoadAudioClips("BreachSplashLarge", 5);
-        breachEmergeSounds = LoadAudioClips("BreachSplashSmall", 6);
-        tailSplashSounds = LoadAudioClips("TailSplash", 4);
+        SeaLifePlugin plugin = SeaLifePlugin.Instance;
+        if (plugin == null || plugin.seaLifeBundle == null) return;
+        blowholeSounds = LoadClips(plugin.seaLifeBundle, "WhaleBlowMed", 6);
+        breachSplashSounds = LoadClips(plugin.seaLifeBundle, "BreachSplashLarge", 5);
+        breachEmergeSounds = LoadClips(plugin.seaLifeBundle, "BreachSplashSmall", 6);
+        tailSplashSounds = LoadClips(plugin.seaLifeBundle, "TailSplash", 4);
     }
 
-    private AudioClip[] LoadAudioClips(string baseName, int count)
+    private static AudioClip[] LoadClips(AssetBundle bundle, string baseName, int count)
     {
-        AudioClip[] clips = new AudioClip[count];
-        for (int i = 0; i < count; i++)
+        var clips = new List<AudioClip>();
+        for (int i = 1; i <= count; i++)
         {
-            clips[i] = LoadAudioClipFromBundle($"{baseName}{i + 1:00}");
+            string clipName = baseName + i.ToString("00");
+            AudioClip clip = bundle.LoadAsset<AudioClip>("Assets/Audio/" + clipName + ".wav");
+            if (clip != null) clips.Add(clip);
         }
-        return clips;
+        return clips.ToArray();
     }
 
-    private AudioClip LoadAudioClipFromBundle(string clipName)
+    private ParticleSystem FindEffect(string name)
     {
-        AudioClip clip = null;
-        try
-        {
-            SeaLifePlugin plugin = FindObjectOfType<SeaLifePlugin>();
-            if (plugin != null)
-            {
-                clip = plugin.seaLifeBundle.LoadAsset<AudioClip>($"Assets/Audio/{clipName}.wav");
-            }
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError($"Failed to load audio clip from bundle: {clipName}. Error: {e.Message}");
-        }
-        return clip;
-    }
-
-    private Transform FindDeepChild(Transform parent, string name)
-    {
-        foreach (Transform child in parent)
-        {
-            if (child.name == name) return child;
-            var result = FindDeepChild(child, name);
-            if (result != null) return result;
-        }
+        Transform root = effectRoot != null ? effectRoot : transform;
+        ParticleSystem[] effects = root.GetComponentsInChildren<ParticleSystem>(true);
+        foreach (ParticleSystem effect in effects)
+            if (effect.gameObject.name == name) return effect;
         return null;
     }
 }

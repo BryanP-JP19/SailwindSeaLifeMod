@@ -32,7 +32,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Plugin|AnyCPU'">
     <DebugSymbols>false</DebugSymbols>
-    <OutputPath>bin\Plugin\</OutputPath>
+    <OutputPath>G:\Program Files %28x86%29\Steam\steamapps\common\Sailwind\BepInEx\plugins\SeaLifeMod\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <DebugType>none</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -84,10 +84,23 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BeakedWhaleAI.cs" />
+    <Compile Include="BottlenoseDolphinAI.cs" />
     <Compile Include="FinWhaleAI.cs" />
     <Compile Include="EffectController.cs" />
+    <Compile Include="MarineAnimalAI.cs" />
+    <Compile Include="MarinePod.cs" />
+    <Compile Include="MarineScale.cs" />
+    <Compile Include="MarineSpecies.cs" />
+    <Compile Include="MaterialManager.cs" />
+    <Compile Include="OrcaAI.cs" />
+    <Compile Include="SeaLifeDebugTools.cs" />
     <Compile Include="SeaLifePlugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ShipWakeTracker.cs" />
+    <Compile Include="SpawnWaterValidator.cs" />
+    <Compile Include="SpermWhaleAI.cs" />
+    <Compile Include="WhaleSharkAI.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

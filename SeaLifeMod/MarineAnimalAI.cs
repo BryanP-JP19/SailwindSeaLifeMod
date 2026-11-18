@@ -70,12 +70,31 @@ public class MarineAnimalAI : MonoBehaviour
     private float nextWanderChange;
     private float nextAnimation;
     private bool initialized;
+    // Random Encounters owns its pooled whales, including size and despawning.
+    // Normal SeaLife animals continue to use our ordinary initialization path.
+    private bool externallyManaged;
     private readonly Vector3[] queryPoints = new Vector3[1];
     private readonly Vector3[] resultDisps = new Vector3[1];
     private readonly float[] candidateAngles = { 0f, 25f, -25f, 50f, -50f, 85f, -85f, 130f, -130f };
 
     public void Initialize(MarineSpecies species, Transform playerTransform, MarinePod pod)
     {
+        InitializeCore(species, playerTransform, pod, true, false);
+    }
+
+    // Compatibility path for Random Encounters 2.0.1, which creates pooled
+    // FinWhaleAI components directly and sets scale/despawn state itself.
+    // The old external spawner does not call Initialize().
+    protected void InitializeExternallyManaged(MarineSpecies species)
+    {
+        InitializeCore(species, null, null, false, true);
+    }
+
+    private void InitializeCore(MarineSpecies species, Transform playerTransform,
+        MarinePod pod, bool rollIndividualSize, bool externalOwner)
+    {
+        if (initialized) return;
+        externallyManaged = externalOwner;
         Species = species;
         player = playerTransform;
         Pod = pod;
@@ -91,9 +110,10 @@ public class MarineAnimalAI : MonoBehaviour
         nextWakeDriftChange = Time.time + Random.Range(2f, 7f);
         // Same random-size function for every spawned species (including
         // Fin Whales, Orcas, and future marine animals).
-        RandomSizeMultiplier = MarineScale.RollIndividualScale();
+        RandomSizeMultiplier = rollIndividualSize
+            ? MarineScale.RollIndividualScale() : 1f;
         TotalSizeMultiplier = RandomSizeMultiplier;
-        transform.localScale *= RandomSizeMultiplier;
+        if (rollIndividualSize) transform.localScale *= RandomSizeMultiplier;
         wanderHeading = transform.forward;
         wanderHeading.y = 0;
         if (wanderHeading.sqrMagnitude < .01f) wanderHeading = Vector3.forward;
@@ -107,6 +127,38 @@ public class MarineAnimalAI : MonoBehaviour
         ConfigureSpecies();
         initialized = true;
         if (!ActiveAnimals.Contains(this)) ActiveAnimals.Add(this);
+    }
+
+    // Random Encounters reuses its pooled whale GameObjects. They are moved
+    // and rotated before SetActive(true); make heading and momentum consistent
+    // with that new spawn, without changing the external mod's chosen scale.
+    protected void ResetExternallyManagedMovement()
+    {
+        if (!initialized || !externallyManaged || Species == null) return;
+        Vector3 heading = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+        if (heading.sqrMagnitude < .0001f) heading = Vector3.forward;
+        heading.Normalize();
+        wanderHeading = heading;
+        desiredHeading = heading;
+        avoidanceHeading = heading;
+        avoidUntil = 0f;
+        obstacleNearby = false;
+        avoidingWakeShip = false;
+        yawVelocity = 0f;
+        turnRate = 0f;
+        bendAmount = 0f;
+        currentSpeed = Random.Range(Species.MinSpeed, Species.MaxSpeed);
+        targetSpeed = currentSpeed;
+        velocity = heading * currentSpeed;
+        nextSpeedChange = Time.time + Random.Range(
+            Species.SpeedChangeMinSeconds, Species.SpeedChangeMaxSeconds);
+        nextWanderChange = Time.time + Random.Range(10f, 30f);
+        nextNavigationCheck = Time.time + .05f;
+        nextSteeringCheck = Time.time;
+        nextDespawnCheck = Time.time + 1f;
+        nextAnimation = Time.time + Random.Range(
+            Mathf.Max(1f, Species.AnimationEventMinSeconds),
+            Mathf.Max(Species.AnimationEventMinSeconds, Species.AnimationEventMaxSeconds));
     }
 
     // Optional additional modifier for species-specific anatomy, e.g. male
@@ -392,7 +444,7 @@ public class MarineAnimalAI : MonoBehaviour
                     Mathf.Max(Species.AnimationEventMinSeconds, Species.AnimationEventMaxSeconds));
             }
         }
-        if (player != null && now >= nextDespawnCheck)
+        if (!externallyManaged && player != null && now >= nextDespawnCheck)
         {
             nextDespawnCheck = now + 1f;
             Vector3 delta = player.position - transform.position;

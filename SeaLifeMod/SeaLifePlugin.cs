@@ -6,11 +6,17 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-[BepInPlugin("com.yourname.sailwind.sealifeplugin", "Sealife Plugin", "0.1.19")]
+[BepInPlugin("com.yourname.sailwind.sealifeplugin", "Sealife Plugin", "0.1.20")]
 public sealed class SeaLifePlugin : BaseUnityPlugin
 {
     public static SeaLifePlugin Instance { get; private set; }
     public AssetBundle seaLifeBundle;
+
+    // Random Encounters 2.0.1 reads this exact private field through Harmony.
+    // Keep it as an alias to the same FinWhalePrefab used by our new spawner.
+    // Do not rename or remove: the other mod cannot see MarineSpecies.Prefab.
+    private GameObject animalPrefab;
+
     private MarineSpecies[] species;
     private GameObject player;
     private Transform shiftingWorld;
@@ -130,6 +136,7 @@ public sealed class SeaLifePlugin : BaseUnityPlugin
         foreach (MarineSpecies entry in species)
         {
             entry.Prefab = seaLifeBundle.LoadAsset<GameObject>(entry.PrefabName);
+            if (entry.PrefabName == "FinWhalePrefab") animalPrefab = entry.Prefab;
             if (entry.Prefab == null)
             {
                 continue;
